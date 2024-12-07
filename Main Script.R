@@ -1,5 +1,7 @@
 #Importing raw dataset
-
+library(readxl)
+hackingData <- read.csv("hackingData.csv")
+View(hackingData)
 
 #Importing necessary libraries
 
