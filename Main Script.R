@@ -1,35 +1,20 @@
 #Importing necessary libraries
 library(readxl)
 library(dplyr)
+library(tidyr)  
 
 #Importing raw dataset
 hackingData <- read.csv("hackingData.csv")
-View(hackingData)
+View(hackingData) #View dataset
 
 #Display the overview of the dataset
-head(hackingData)
-summary(hackingData)
+head(hackingData) # See the first 5 columns of the dataset
+summary(hackingData) # See the overall statistics of the dataset
 
-#Store the invalid data in dataframe for cleaning
-invalid_data_list <- list() # Initialize an empty list to store invalid columns
+#Data Processing 
 
-for (col in colnames(hackingData)) { # Loop through the columns of hackingData
-
-  if (sum(is.na(hackingData[[col]])) != 0 || # Check if the column has N.A values
-      sum(hackingData[[col]] == "") != 0 || # Check if the column has empty strings
-      sum(hackingData[[col]] == "NULL") != 0 || # Check if the column has NULL value inside
-      sum(hackingData[[col]] == "Unknown") != 0 # Check if the column has Unknown values
-      ) { 
-    invalid_data_list[[col]] <- hackingData[[col]]     # If the column has invalid data, add it to the list
-  }
-}
-
-invalid_data_df <- as.data.frame(invalid_data_list, stringsAsFactors = FALSE) # Convert the list to a dataframe
-colnames(invalid_data_df) # View the column names of the dataframe that contains invalid data
-
-
-# Display the summary of the dataframe of invalid data
-invalid_df_summary <- data.frame( # Set the data type of each column in the summary dataframe
+# Display the summary of the data frame of invalid data
+invalid_data_summary <- data.frame( # Set the data type of each column in the summary data frame
   Column = character(),       # Column names
   Empty_Strings = integer(),  # Count of empty strings
   Unknown_Values = integer(), # Count of "unknown" values
@@ -38,21 +23,18 @@ invalid_df_summary <- data.frame( # Set the data type of each column in the summ
   stringsAsFactors = FALSE
 )
 
-# Loop through each column in the dataset
-for (col in colnames(invalid_data_df)) {
-  column_data <- as.character(invalid_data_df[[col]]) #treat all column values as characters
+for (col in colnames(hackingData)) { # Loop through each column in the invalid data data frame
+  hackingData$Notify <- iconv(hackingData$Notify, from = "UTF-8", to = "UTF-8", sub = "byte") # Clean invalid UTF-8 characters in the Notify column
+  column_data <- as.character(hackingData[[col]])  #treat all column values as characters
+  empty_count <- sum(trimws(hackingData[[col]]) == "", na.rm = TRUE)      # Count occurrences of Empty strings
+  unknown_count <-  sum(grepl("^(unknown)$", hackingData[[col]], ignore.case = TRUE)) # Count occurrences of "unknown"
+  na_count <- sum(is.na(column_data)) # Count occurrences of NA values
+  NULL_count <- sum(is.null(column_data) | grepl("^(null)$", hackingData[[col]], ignore.case = TRUE)) # Count occurrences of Null values
   
-  # Count occurrences of invalid values
-  empty_count <- sum(column_data == "", na.rm = TRUE)      # Empty strings
-  unknown_count <- sum(column_data == "unknown", na.rm = TRUE) # "unknown"
-  na_count <- sum(is.na(column_data)) # NA values
-  NULL_count <- sum(column_data == "NULL", na.rm = TRUE) # Null values
-  
-  # Append results to the summary data frame
-  invalid_df_summary <- rbind(
-    invalid_df_summary,
+  invalid_data_summary <- rbind( # Bind results to the summary data frame
+    invalid_data_summary,
     data.frame(
-      Column = col,
+      Column = col, 
       Empty_Strings = empty_count,
       Unknown_Values = unknown_count,
       NA_Values = na_count,
@@ -61,24 +43,39 @@ for (col in colnames(invalid_data_df)) {
   )
 }
 
-invalid_df_summary # View the summary of the dataframe with invalid data
+invalid_data_summary
+invalid_data_summary
+invalid_data_summary # View the summary of the data frame with invalid data
 
-#Data Processing 
 # Cleaning column Notify
-# Replace missing values with mode
+get_mode <- function(v) {
+  v_cleaned <- v[!(is.na(v) | v == "" | grepl("^(unknown)$", v, ignore.case = TRUE) | grepl("^(null)$", v, ignore.case = TRUE) | is.null(v))]
+  # Remove NA and empty strings from the vector
+  uniq_vals <- unique(v_cleaned) # Get unique values from the cleaned vector
+  uniq_vals[which.max(tabulate(match(v_cleaned, uniq_vals)))] # Return the mode (the most frequent value)
+}
+
+hackingData <- hackingData %>%
+  mutate(Notify = if_else((trimws(Notify) == ""|grepl("^(unknown)$", Notify, ignore.case = TRUE)), # Replace invalid data with mode
+                          get_mode(Notify), Notify))
 
 # Cleaning column URL
-# Remove columns with no url
+hackingData <- hackingData %>% 
+  filter(URL != "")  # Filter invalid data 
+
 
 # Cleaning column IP
-# Replace missing values with default IP address
+default_ip <- "192.168.0.1"
+hackingData <- hackingData %>%
+  mutate(IP = if_else(trimws(IP) == "" | is.null(IP), default_ip, IP)) # Replacing invalid data with default IP address
 
 # Cleaning column Country
-# Replace missing values with mode
+hackingData <- hackingData %>%
+  mutate(Country = if_else((trimws(Country) == ""|grepl("^(unknown)$", Country, ignore.case = TRUE)), get_mode(Country), Country)) # Replace invalid data with mode
 
 # Cleaning column OS
-# Replace missing values with mode
-
+hackingData <- hackingData %>%
+  mutate(OS = if_else((trimws(OS) == ""|grepl("^(unknown)$", OS, ignore.case = TRUE)), get_mode(OS), OS)) # Replace invalid data with mode
 
 # Cleaning column WebServer
 
@@ -90,9 +87,6 @@ invalid_df_summary # View the summary of the dataframe with invalid data
 
 
 # Cleaning column Ransom
-
-
-# Cleaning column Downtime
 
 
 # Cleaning column Loss
